@@ -14,6 +14,7 @@ const engine = require("./game-engine");
 const PORT = process.env.PORT ? Number(process.env.PORT) : 8080;
 const PUBLIC_DIR = path.join(__dirname, "public");
 const MIME = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8" };
+const TURN_LIMIT_MS = 2 * 60 * 1000;
 
 const rooms = new Map(); // roomId -> room
 
@@ -36,15 +37,68 @@ function createRoom() {
     sockets: [null, null],
     tokens: [makeToken(), makeToken()],
     names: ["プレイヤー1", "プレイヤー2"],
-    joined: [false, false]
+    joined: [false, false],
+    turnDeadline: null,
+    turnTimerHandle: null,
+    paused: false,
+    pauseVotes: [false, false],
+    pausedRemainingMs: null
   };
   rooms.set(id, room);
   return room;
 }
 
+function clearRoomTimer(room) {
+  if (room.turnTimerHandle) { clearTimeout(room.turnTimerHandle); room.turnTimerHandle = null; }
+}
+
+function startRoomTimer(room, ms) {
+  clearRoomTimer(room);
+  room.turnDeadline = Date.now() + ms;
+  room.turnTimerHandle = setTimeout(() => {
+    if (!room.game || room.game.gameOver) return;
+    engine.forceLoseByTimeout(room.game, room.game.current);
+    clearRoomTimer(room);
+    room.turnDeadline = null;
+    broadcast(room);
+  }, ms);
+}
+
+function restartTurnClock(room) {
+  room.paused = false;
+  room.pauseVotes = [false, false];
+  room.pausedRemainingMs = null;
+  startRoomTimer(room, TURN_LIMIT_MS);
+}
+
+function stopTurnClock(room) {
+  clearRoomTimer(room);
+  room.turnDeadline = null;
+  room.paused = false;
+  room.pauseVotes = [false, false];
+  room.pausedRemainingMs = null;
+}
+
+function togglePause(room, playerIdx) {
+  if (!room.game || room.game.gameOver) return;
+  room.pauseVotes[playerIdx] = !room.pauseVotes[playerIdx];
+  const bothNow = room.pauseVotes[0] && room.pauseVotes[1];
+  if (bothNow && !room.paused) {
+    room.pausedRemainingMs = room.turnDeadline ? Math.max(0, room.turnDeadline - Date.now()) : TURN_LIMIT_MS;
+    clearRoomTimer(room);
+    room.turnDeadline = null;
+    room.paused = true;
+  } else if (!bothNow && room.paused) {
+    room.paused = false;
+    startRoomTimer(room, room.pausedRemainingMs != null ? room.pausedRemainingMs : TURN_LIMIT_MS);
+    room.pausedRemainingMs = null;
+  }
+}
+
 function maybeStartGame(room) {
   if (room.joined[0] && room.joined[1] && !room.game) {
     room.game = engine.createGame();
+    restartTurnClock(room);
   }
 }
 
@@ -55,7 +109,11 @@ function sanitize(room, viewerIdx) {
     roomId: room.id,
     names: room.names,
     opponentConnected: !!room.sockets[1 - viewerIdx],
-    waitingForOpponent: !room.joined[1 - viewerIdx]
+    waitingForOpponent: !room.joined[1 - viewerIdx],
+    paused: room.paused,
+    pauseVotes: room.pauseVotes,
+    turnDeadline: room.paused ? null : room.turnDeadline,
+    pausedRemainingMs: room.paused ? room.pausedRemainingMs : null
   };
   if (!game) return Object.assign(base, { started: false });
   const pendingDraw = game.pendingDraw
@@ -66,9 +124,15 @@ function sanitize(room, viewerIdx) {
         ? { mine: true, drawn: game.pendingScout.drawn }
         : { mine: false })
     : null;
+  const pendingVassal = game.pendingVassal
+    ? (game.pendingVassal.player === viewerIdx
+        ? { mine: true, card: game.pendingVassal.card }
+        : { mine: false })
+    : null;
   return Object.assign(base, {
     started: true,
     current: game.current,
+    turnPhase: game.turnPhase,
     gameOver: game.gameOver,
     winner: game.winner,
     reason: game.reason,
@@ -78,10 +142,14 @@ function sanitize(room, viewerIdx) {
     troopDeckCount: game.troopDeck.length,
     tacticsDeckCount: game.tacticsDeck.length,
     tacticsPlayed: game.tacticsPlayed,
+    leaderUsed: game.leaderUsed,
     discardTactics: game.discardTactics,
     log: game.log.slice(-60),
     pendingDraw,
-    pendingScout
+    pendingScout,
+    pendingVassal,
+    canPass: engine.canPass(game, viewerIdx),
+    claimableFlags: engine.claimableFlags(game, viewerIdx)
   });
 }
 
@@ -164,17 +232,42 @@ wss.on("connection", (sock) => {
     }
 
     const room = sock.room;
-    if (!room || sock.playerIdx === null || !room.game) return;
+    if (!room || sock.playerIdx === null) return;
     const p = sock.playerIdx;
+
+    if (msg.type === "toggle_pause") {
+      togglePause(room, p);
+      broadcast(room);
+      return;
+    }
+
+    if (!room.game) return;
     const g = room.game;
     let result = null;
+    const currentBefore = g.current;
+    const overBefore = g.gameOver;
 
     switch (msg.type) {
+      case "claim_flag":
+        result = engine.claimFlag(g, p, msg.flagIndex);
+        break;
+      case "proceed_draw":
+        result = engine.proceedToDraw(g, p);
+        break;
+      case "choose_draw":
+        result = engine.chooseDrawSource(g, p, msg.source);
+        break;
+      case "pass_turn":
+        result = engine.passTurn(g, p);
+        break;
       case "play_troop":
-        result = engine.playTroop(g, p, msg.handIndex)(msg.flagIndex);
+        result = engine.playTroop(g, p, msg.handIndex, msg.flagIndex);
         break;
       case "play_wild":
         result = engine.playWild(g, p, msg.handIndex, msg.flagIndex, msg.suit, msg.value);
+        break;
+      case "play_mimic":
+        result = engine.playMimic(g, p, msg.handIndex, msg.flagIndex, msg.sourceFlag, msg.sourceSlot);
         break;
       case "play_env":
         result = engine.playEnvironment(g, p, msg.handIndex, msg.flagIndex);
@@ -183,7 +276,7 @@ wss.on("connection", (sock) => {
         result = engine.playScout(g, p, msg.handIndex, msg.sources);
         break;
       case "resolve_scout":
-        result = engine.resolveScout(g, p, msg.keepIndex);
+        result = engine.resolveScout(g, p, msg.keepIndex, msg.placements);
         break;
       case "play_redeploy":
         result = engine.playRedeploy(g, p, msg.handIndex, msg.fromFlag, msg.slotIndex, msg.toFlag);
@@ -191,18 +284,38 @@ wss.on("connection", (sock) => {
       case "play_deserter":
         result = engine.playDeserter(g, p, msg.handIndex, msg.targetFlag, msg.targetSlotIndex);
         break;
-      case "choose_draw":
-        result = engine.chooseDrawSource(g, p, msg.source);
+      case "play_bribe":
+        result = engine.playBribe(g, p, msg.handIndex);
+        break;
+      case "play_masquerade":
+        result = engine.playMasquerade(g, p, msg.handIndex, msg.giveCardId);
+        break;
+      case "play_renovate":
+        result = engine.playRenovate(g, p, msg.handIndex, msg.targetFlag, msg.targetSlotIndex);
+        break;
+      case "play_vassal":
+        result = engine.playVassal(g, p, msg.handIndex);
+        break;
+      case "resolve_vassal":
+        result = engine.resolveVassal(g, p, msg.choice);
         break;
       case "rematch":
         if (!g.gameOver) return;
         room.game = engine.createGame();
-        break;
+        restartTurnClock(room);
+        broadcast(room);
+        return;
       default:
         return;
     }
 
     if (result && !result.ok) { sendError(sock, result.error); return; }
+
+    if (g.gameOver && !overBefore) {
+      stopTurnClock(room);
+    } else if (!g.gameOver && g.current !== currentBefore) {
+      restartTurnClock(room);
+    }
     broadcast(room);
   });
 
