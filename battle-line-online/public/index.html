@@ -172,6 +172,7 @@
   .log-strip b{color:var(--ink);font-weight:500;}
 
   .banner-notice{text-align:center;font-size:12.5px;padding:6px;border-radius:4px;background:var(--bg-sunken);color:var(--ink-soft);}
+  .banner-notice[data-tone="error"]{background:color-mix(in srgb, var(--danger) 16%, var(--bg-sunken));color:var(--danger);}
 
   .overlay{position:fixed;inset:0;background:color-mix(in srgb, var(--bg-sunken) 88%, transparent);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;}
   .overlay .panel{background:var(--bg-elevated);border:1px solid var(--line);border-radius:8px;padding:26px;max-width:460px;width:100%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.25);}
@@ -183,6 +184,7 @@
   .rules-panel{max-width:560px;text-align:left;max-height:80vh;overflow-y:auto;}
   .rules-panel h3{font-size:13.5px;margin:16px 0 6px;color:var(--gold);}
   .rules-panel table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px;}
+  .rules-panel .note{margin-top:14px;padding:10px 12px;background:var(--bg-sunken);border-radius:5px;font-size:12px;color:var(--ink-soft);line-height:1.6;}
   .rules-panel th,.rules-panel td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;}
   .close-x{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--ink-soft);font-size:18px;cursor:pointer;}
 
@@ -250,6 +252,7 @@
       } else if(msg.type === 'state'){
         view = msg.state;
         ui.mode = null;
+        ui.error = null;
       } else if(msg.type === 'error'){
         ui.error = msg.message;
       }
@@ -373,17 +376,22 @@
   function renderBoard(){
     var targets = targetableFlags();
     var pickable = pickableBoardCards();
+    // Each viewer sees their own cards on the near (bottom) side, close to
+    // their hand tray, and the opponent's cards on the far (top) side --
+    // regardless of which internal player index (0/1) they actually are.
+    var topSide = 1 - me.playerIdx;
+    var bottomSide = me.playerIdx;
     var html = '<div class="board-wrap"><div class="board">';
     view.flags.forEach(function(f, idx){
       var targetable = !!targets[idx];
       html += '<div class="flag-col"'+(targetable?' data-action="flag"':'')+' data-flag="'+idx+'" data-targetable="'+(targetable?'1':'0')+'" tabindex="'+(targetable?'0':'-1')+'">';
       html += '<div class="zone zoneA">';
       for(var i=0;i<capacityOf(f);i++){
-        var c = f.slots[0][i];
+        var c = f.slots[topSide][i];
         if(c){
-          var key = idx+'-0-'+i;
+          var key = idx+'-'+topSide+'-'+i;
           var pick = pickable[key] ? ' pickable' : '';
-          html += '<div class="card '+suitClass(c)+pick+'"'+(pickable[key]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="0" data-slot="'+i+'">'+troopCardHTML(c,false)+'</div>';
+          html += '<div class="card '+suitClass(c)+pick+'"'+(pickable[key]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="'+topSide+'" data-slot="'+i+'">'+troopCardHTML(c,false)+'</div>';
         } else { html += '<div class="slot empty"></div>'; }
       }
       html += '</div>';
@@ -391,11 +399,11 @@
       html += '<div class="flagpole" data-owner="'+(f.claimedBy===null?'':f.claimedBy)+'"><span class="banner"></span><span class="num">第'+f.num+'旗</span><span class="formation">'+(f.formation?esc(f.formation):'&nbsp;')+'</span></div>';
       html += '<div class="zone zoneB">';
       for(var j=0;j<capacityOf(f);j++){
-        var c2 = f.slots[1][j];
+        var c2 = f.slots[bottomSide][j];
         if(c2){
-          var key2 = idx+'-1-'+j;
+          var key2 = idx+'-'+bottomSide+'-'+j;
           var pick2 = pickable[key2] ? ' pickable' : '';
-          html += '<div class="card '+suitClass(c2)+pick2+'"'+(pickable[key2]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="1" data-slot="'+j+'">'+troopCardHTML(c2,false)+'</div>';
+          html += '<div class="card '+suitClass(c2)+pick2+'"'+(pickable[key2]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="'+bottomSide+'" data-slot="'+j+'">'+troopCardHTML(c2,false)+'</div>';
         } else { html += '<div class="slot empty"></div>'; }
       }
       html += '</div>';
@@ -482,18 +490,26 @@
     });
     html += '</div>';
 
-    [0,1].forEach(function(p){
+    // Opponent's scorebar sits above the board (their cards render on top),
+    // mine sits just above my own row and hand tray -- same near/far logic
+    // as renderBoard(), so the layout always mirrors "my side" to me.
+    [1-me.playerIdx, me.playerIdx].forEach(function(p){
       var count = view.flags.filter(function(f){return f.claimedBy===p;}).length;
       var isActive = (view.current===p && !view.gameOver);
       var handCount = p === me.playerIdx ? view.hand.length : view.oppHandCount;
       var connected = p === me.playerIdx ? true : view.opponentConnected;
+      var tacticsUsed = view.tacticsPlayed ? view.tacticsPlayed[p] : 0;
       html += '<div class="scorebar '+(p===0?'playerA':'playerB')+(isActive?' active':'')+'">';
       html += '  <div class="who"><span class="swatch" style="background:'+(p===0?'var(--accentA)':'var(--accentB)')+'"></span>'+esc(view.names[p])+(p===me.playerIdx?'（あなた）':'')+(isActive?'　<span style="color:var(--gold);font-size:11px;">● 手番</span>':'')+'</div>';
-      html += '  <div class="stat"><span class="conn-dot'+(connected?'':' off')+'"></span> 獲得旗 <b>'+count+'</b> / 5　手札 <b>'+handCount+'</b>枚</div>';
+      html += '  <div class="stat"><span class="conn-dot'+(connected?'':' off')+'"></span> 獲得旗 <b>'+count+'</b> / 5　手札 <b>'+handCount+'</b>枚　戦術使用 <b>'+tacticsUsed+'</b>枚</div>';
       html += '</div>';
     });
 
     html += renderBoard();
+
+    if(ui.error){
+      html += '<div class="banner-notice" data-tone="error">'+esc(ui.error)+' <button class="chip" data-action="dismiss-error" style="margin-left:8px;">閉じる</button></div>';
+    }
 
     if(!view.opponentConnected && !view.gameOver){
       html += '<div class="banner-notice">相手が切断しています。再接続を待っています…</div>';
@@ -558,7 +574,7 @@
     html += '<button class="close-x" data-action="closerules">×</button>';
     html += '<h2 style="font-family:\'Shippori Mincho\',serif;">バトルラインの遊び方</h2>';
     html += '<p style="font-size:13px;line-height:1.7;">6兵科×1〜10、計60枚の部隊カードと、10枚の戦術カードを使用。各プレイヤーは7枚の手札を持ち、9本の軍旗を巡って戦う。</p>';
-    html += '<h3>手番</h3><ol style="font-size:13px;line-height:1.75;"><li>手札から1枚（部隊カードまたは戦術カード）を使う。</li><li>通常は山札から1枚引いて手札を7枚に戻す（部隊山札／戦術山札の両方が残っていれば、引く山札を選べる）。</li></ol>';
+    html += '<h3>手番</h3><ol style="font-size:13px;line-height:1.75;"><li>まず山札から1枚引く（部隊山札／戦術山札の両方が残っていれば、引く山札を選べる）。</li><li>次に手札から1枚（部隊カードまたは戦術カード）を使う。</li></ol>';
     html += '<h3>陣形（強い順、旗に3枚〔泥濘なら4枚〕揃うと自動判定）</h3>';
     html += '<table><tr><th>陣形</th><th>条件</th></tr><tr><td>楔形陣</td><td>同じ兵科で連続した数値3枚</td></tr><tr><td>方陣</td><td>同じ数値が3枚</td></tr><tr><td>陣列</td><td>同じ兵科3枚（不連続）</td></tr><tr><td>散兵線</td><td>異なる兵科で連続した数値3枚</td></tr><tr><td>混成隊</td><td>その他（合計値で比較）</td></tr></table>';
     html += '<h3>戦術カード（本実装オリジナルの10枚）</h3><table>';
@@ -566,6 +582,7 @@
       html += '<tr><td>'+esc(TACTICS_META[k].name)+'</td><td>'+esc(TACTICS_META[k].desc)+'</td></tr>';
     });
     html += '</table>';
+    html += '<div class="note">戦術カードは、自分の使用済み枚数が相手の使用済み枚数を超えることはできない（＝相手の使用数+1枚まで）。使いすぎると相手が追いつくまで使用できなくなる。</div>';
     html += '<h3>勝利条件</h3><ul style="font-size:13px;line-height:1.75;"><li>9本のうち5本の軍旗を確保する。</li><li>または隣接する3本の軍旗を連続して確保する。</li></ul>';
     html += '</div></div>';
     return html;
@@ -672,6 +689,8 @@
       ui.showRules = false; render();
     } else if(action === 'log'){
       alert(view.log.slice().reverse().join('\n'));
+    } else if(action === 'dismiss-error'){
+      ui.error = null; render();
     }
   });
 

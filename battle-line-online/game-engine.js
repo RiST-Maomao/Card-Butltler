@@ -74,20 +74,23 @@ function createGame() {
   for (let i = 0; i < 9; i++) {
     flags.push({ num: i + 1, slots: [[], []], fog: false, mud: false, claimedBy: null, formation: null });
   }
-  return {
+  const game = {
     hands: [troopDeck.splice(0, 7), troopDeck.splice(0, 7)],
     troopDeck,
     tacticsDeck,
     discardTactics: [],
+    tacticsPlayed: [0, 0],
     flags,
     current: 0,
     log: ["両軍が布陣を開始した。プレイヤー1の手番。"],
     gameOver: false,
     winner: null,
     reason: null,
-    pendingDraw: null,   // { player }
+    pendingDraw: null,   // { player } - must be resolved before playing a card this turn
     pendingScout: null   // { player, drawn: [{card, source}] }
   };
+  beginTurn(game);
+  return game;
 }
 
 function capacity(flag) { return flag.mud ? 4 : 3; }
@@ -176,46 +179,53 @@ function applyVictoryIfAny(game) {
   return !!v;
 }
 
-function handleEmptyHands(game) {
+function canDeckDraw(game) { return game.troopDeck.length > 0 || game.tacticsDeck.length > 0; }
+function canPlayerAct(game, idx) { return game.hands[idx].length > 0 || canDeckDraw(game); }
+
+function endGameByTally(game, reasonPrefix) {
+  const counts = [0, 0];
+  game.flags.forEach((f) => { if (f.claimedBy !== null) counts[f.claimedBy]++; });
+  game.gameOver = true;
+  if (counts[0] > counts[1]) game.winner = 0;
+  else if (counts[1] > counts[0]) game.winner = 1;
+  else game.winner = null;
+  game.reason = "双方とも手が続かなくなった（獲得旗数で判定）";
+  game.log.push(reasonPrefix + (game.winner !== null ? "プレイヤー" + (game.winner + 1) + "が旗数で優勢。" : "互角のまま終戦。"));
+}
+
+function handleStuckTurns(game) {
   let guard = 0;
-  while (!game.gameOver && game.hands[game.current].length === 0 && guard < 4) {
+  while (!game.gameOver && !canPlayerAct(game, game.current) && guard < 4) {
     guard++;
     const other = 1 - game.current;
-    if (game.hands[other].length === 0 && game.troopDeck.length === 0 && game.tacticsDeck.length === 0) {
-      const counts = [0, 0];
-      game.flags.forEach((f) => { if (f.claimedBy !== null) counts[f.claimedBy]++; });
-      game.gameOver = true;
-      if (counts[0] > counts[1]) game.winner = 0;
-      else if (counts[1] > counts[0]) game.winner = 1;
-      else game.winner = null;
-      game.reason = "双方の手札が尽きた（獲得旗数で判定）";
-      game.log.push("両軍とも兵を出し尽くした。" + (game.winner !== null ? "プレイヤー" + (game.winner + 1) + "が旗数で優勢。" : "互角のまま終戦。"));
+    if (!canPlayerAct(game, other)) {
+      endGameByTally(game, "両軍とも兵を出し尽くした。");
       return;
     }
-    game.log.push("プレイヤー" + (game.current + 1) + "は手札が尽きたため手番を送った。");
+    game.log.push("プレイヤー" + (game.current + 1) + "は手も山札もなく、手番を送った。");
     game.current = other;
   }
 }
 
-function switchTurn(game) {
-  game.current = 1 - game.current;
-  handleEmptyHands(game);
-}
-
-function postPlayDraw(game, playerIdx) {
+// Battle Line turn order is: draw a card first, then play a card. beginTurn()
+// runs the mandatory start-of-turn draw (or opens the pendingDraw choice) for
+// whoever game.current is; playing a card is only allowed once it clears.
+function beginTurn(game) {
+  if (game.gameOver) return;
+  handleStuckTurns(game);
+  if (game.gameOver) return;
   const troopAvail = game.troopDeck.length > 0;
   const tacticsAvail = game.tacticsDeck.length > 0;
-  if (!troopAvail && !tacticsAvail) {
-    switchTurn(game);
-    return;
-  }
-  if (troopAvail && tacticsAvail) {
-    game.pendingDraw = { player: playerIdx };
-    return;
-  }
+  if (!troopAvail && !tacticsAvail) { game.pendingDraw = null; return; }
+  if (troopAvail && tacticsAvail) { game.pendingDraw = { player: game.current }; return; }
   const card = troopAvail ? game.troopDeck.shift() : game.tacticsDeck.shift();
-  game.hands[playerIdx].push(card);
-  switchTurn(game);
+  game.hands[game.current].push(card);
+  game.pendingDraw = null;
+}
+
+function switchTurn(game) {
+  game.current = 1 - game.current;
+  beginTurn(game);
 }
 
 function err(msg) { return { ok: false, error: msg }; }
@@ -224,8 +234,15 @@ function ok() { return { ok: true }; }
 function assertTurn(game, playerIdx) {
   if (game.gameOver) return "対局は終了しています。";
   if (game.pendingScout) return "斥候の処理が終わっていません。";
-  if (game.pendingDraw) return "山札を選択してください。";
+  if (game.pendingDraw) return "まず山札を選択してください。";
   if (game.current !== playerIdx) return "相手の手番です。";
+  return null;
+}
+
+function assertTacticsLimit(game, playerIdx) {
+  if (game.tacticsPlayed[playerIdx] > game.tacticsPlayed[1 - playerIdx]) {
+    return "戦術カードの使用上限（相手の使用数+1枚）に達しているため、これ以上は使用できません。";
+  }
   return null;
 }
 
@@ -245,13 +262,14 @@ function playTroop(game, playerIdx, handIndex) {
     flag.slots[playerIdx].push({ kind: "troop", id: card.id, suit: card.suit, value: card.value });
     game.log.push("プレイヤー" + (playerIdx + 1) + "が第" + flag.num + "旗に" + suitName(card.suit) + "『" + card.value + "』を配置。");
     resolveFlag(game, flagIndex);
-    if (!applyVictoryIfAny(game)) postPlayDraw(game, playerIdx);
+    if (!applyVictoryIfAny(game)) switchTurn(game);
     return ok();
   };
 }
 
 function playWild(game, playerIdx, handIndex, flagIndex, declaredSuit, declaredValue) {
   const e = assertTurn(game, playerIdx); if (e) return err(e);
+  const tl = assertTacticsLimit(game, playerIdx); if (tl) return err(tl);
   const card = game.hands[playerIdx][handIndex];
   if (!card || card.kind !== "tactics") return err("不正な手札です。");
   const meta = TACTICS_META[card.type];
@@ -268,15 +286,17 @@ function playWild(game, playerIdx, handIndex, flagIndex, declaredSuit, declaredV
   if (flag.slots[playerIdx].length >= capacity(flag)) return err("これ以上配置できません。");
   game.hands[playerIdx].splice(handIndex, 1);
   flag.slots[playerIdx].push({ kind: "troop", id: card.id, suit, value, wild: card.type });
+  game.tacticsPlayed[playerIdx]++;
   const label = meta.name + (suit ? "（" + suitName(suit) + "『" + value + "』として）" : "（『" + value + "』として）");
   game.log.push("プレイヤー" + (playerIdx + 1) + "が第" + flag.num + "旗に" + label + "を配置。");
   resolveFlag(game, flagIndex);
-  if (!applyVictoryIfAny(game)) postPlayDraw(game, playerIdx);
+  if (!applyVictoryIfAny(game)) switchTurn(game);
   return ok();
 }
 
 function playEnvironment(game, playerIdx, handIndex, flagIndex) {
   const e = assertTurn(game, playerIdx); if (e) return err(e);
+  const tl = assertTacticsLimit(game, playerIdx); if (tl) return err(tl);
   const card = game.hands[playerIdx][handIndex];
   if (!card || card.kind !== "tactics") return err("不正な手札です。");
   const meta = TACTICS_META[card.type];
@@ -287,19 +307,22 @@ function playEnvironment(game, playerIdx, handIndex, flagIndex) {
   game.hands[playerIdx].splice(handIndex, 1);
   flag[card.type] = true;
   game.discardTactics.push(card);
+  game.tacticsPlayed[playerIdx]++;
   game.log.push("プレイヤー" + (playerIdx + 1) + "が第" + flag.num + "旗に「" + meta.name + "」を発動。");
   resolveFlag(game, flagIndex);
-  if (!applyVictoryIfAny(game)) postPlayDraw(game, playerIdx);
+  if (!applyVictoryIfAny(game)) switchTurn(game);
   return ok();
 }
 
 function playScout(game, playerIdx, handIndex, sources) {
   const e = assertTurn(game, playerIdx); if (e) return err(e);
+  const tl = assertTacticsLimit(game, playerIdx); if (tl) return err(tl);
   const card = game.hands[playerIdx][handIndex];
   if (!card || card.kind !== "tactics" || card.type !== "scout") return err("不正な手札です。");
   if (!Array.isArray(sources) || sources.length === 0) return err("引く山札を指定してください。");
   game.hands[playerIdx].splice(handIndex, 1);
   game.discardTactics.push(card);
+  game.tacticsPlayed[playerIdx]++;
   const drawn = [];
   for (let i = 0; i < Math.min(3, sources.length); i++) {
     if (game.troopDeck.length === 0 && game.tacticsDeck.length === 0) break;
@@ -334,6 +357,7 @@ function resolveScout(game, playerIdx, keepIndex) {
 
 function playRedeploy(game, playerIdx, handIndex, fromFlagIdx, slotIndex, toFlagIdx) {
   const e = assertTurn(game, playerIdx); if (e) return err(e);
+  const tl = assertTacticsLimit(game, playerIdx); if (tl) return err(tl);
   const card = game.hands[playerIdx][handIndex];
   if (!card || card.kind !== "tactics" || card.type !== "redeploy") return err("不正な手札です。");
   const from = game.flags[fromFlagIdx], to = game.flags[toFlagIdx];
@@ -344,16 +368,18 @@ function playRedeploy(game, playerIdx, handIndex, fromFlagIdx, slotIndex, toFlag
   if (to.slots[playerIdx].length >= capacity(to)) return err("移動先の旗はいっぱいです。");
   game.hands[playerIdx].splice(handIndex, 1);
   game.discardTactics.push(card);
+  game.tacticsPlayed[playerIdx]++;
   from.slots[playerIdx].splice(slotIndex, 1);
   to.slots[playerIdx].push(moving);
   game.log.push("プレイヤー" + (playerIdx + 1) + "が「再配置」で第" + from.num + "旗から第" + to.num + "旗へ札を移動。");
   resolveFlag(game, toFlagIdx);
-  if (!applyVictoryIfAny(game)) postPlayDraw(game, playerIdx);
+  if (!applyVictoryIfAny(game)) switchTurn(game);
   return ok();
 }
 
 function playDeserter(game, playerIdx, handIndex, targetFlagIdx, targetSlotIndex) {
   const e = assertTurn(game, playerIdx); if (e) return err(e);
+  const tl = assertTacticsLimit(game, playerIdx); if (tl) return err(tl);
   const card = game.hands[playerIdx][handIndex];
   if (!card || card.kind !== "tactics" || card.type !== "deserter") return err("不正な手札です。");
   const flag = game.flags[targetFlagIdx];
@@ -363,19 +389,22 @@ function playDeserter(game, playerIdx, handIndex, targetFlagIdx, targetSlotIndex
   if (!target) return err("除外する札がありません。");
   game.hands[playerIdx].splice(handIndex, 1);
   game.discardTactics.push(card);
+  game.tacticsPlayed[playerIdx]++;
   flag.slots[oppIdx].splice(targetSlotIndex, 1);
   game.log.push("プレイヤー" + (playerIdx + 1) + "が「離反工作」で第" + flag.num + "旗の相手の札を除外。");
-  if (!applyVictoryIfAny(game)) postPlayDraw(game, playerIdx);
+  if (!applyVictoryIfAny(game)) switchTurn(game);
   return ok();
 }
 
+// Resolves the mandatory start-of-turn draw when both decks are available.
+// Playing a card (any of the handlers above) is blocked by assertTurn until
+// this clears, matching Battle Line's "draw, then play" turn order.
 function chooseDrawSource(game, playerIdx, source) {
   if (!game.pendingDraw || game.pendingDraw.player !== playerIdx) return err("山札選択の必要はありません。");
   const deck = source === "tactics" ? game.tacticsDeck : game.troopDeck;
   if (deck.length === 0) return err("その山札は空です。");
   game.hands[playerIdx].push(deck.shift());
   game.pendingDraw = null;
-  switchTurn(game);
   return ok();
 }
 

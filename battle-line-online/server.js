@@ -77,6 +77,7 @@ function sanitize(room, viewerIdx) {
     oppHandCount: game.hands[1 - viewerIdx].length,
     troopDeckCount: game.troopDeck.length,
     tacticsDeckCount: game.tacticsDeck.length,
+    tacticsPlayed: game.tacticsPlayed,
     discardTactics: game.discardTactics,
     log: game.log.slice(-60),
     pendingDraw,
