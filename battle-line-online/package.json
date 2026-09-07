@@ -1,0 +1,13 @@
+{
+  "name": "battle-line-online",
+  "version": "1.0.0",
+  "description": "Battle Line - online 2-player board game (local server)",
+  "private": true,
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}

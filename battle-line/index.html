@@ -1,0 +1,598 @@
+<title>バトルライン</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+  :root{
+    --bg:#ece3cd;
+    --bg-elevated:#f6efdc;
+    --bg-sunken:#e0d5b8;
+    --ink:#2a2419;
+    --ink-soft:#6b6046;
+    --line:#c2b28c;
+    --accentA:#7a2e2e;
+    --accentA-soft:#7a2e2e22;
+    --accentB:#1f5566;
+    --accentB-soft:#1f556622;
+    --gold:#9c7a2c;
+    --good:#3f7a4e;
+    --danger:#9c3b3b;
+    --shadow: 0 2px 0 rgba(42,36,25,.12);
+
+    --suit-sword:#a53a34;
+    --suit-bow:#b8791f;
+    --suit-spear:#3f7a4e;
+    --suit-cavalry:#33608f;
+    --suit-shield:#6a4a8f;
+    --suit-banner:#2f8f82;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#181510;
+      --bg-elevated:#242019;
+      --bg-sunken:#100e0a;
+      --ink:#ecdfc0;
+      --ink-soft:#b1a37c;
+      --line:#4a4227;
+      --accentA:#c25b50;
+      --accentA-soft:#c25b5030;
+      --accentB:#5a9fb8;
+      --accentB-soft:#5a9fb830;
+      --gold:#d4a949;
+      --good:#6fae7c;
+      --danger:#d97a72;
+      --shadow: 0 2px 0 rgba(0,0,0,.4);
+
+      --suit-sword:#d1584f;
+      --suit-bow:#e0a24f;
+      --suit-spear:#6fae7c;
+      --suit-cavalry:#7cb0dd;
+      --suit-shield:#a084c9;
+      --suit-banner:#5cc0b3;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#181510;
+    --bg-elevated:#242019;
+    --bg-sunken:#100e0a;
+    --ink:#ecdfc0;
+    --ink-soft:#b1a37c;
+    --line:#4a4227;
+    --accentA:#c25b50;
+    --accentA-soft:#c25b5030;
+    --accentB:#5a9fb8;
+    --accentB-soft:#5a9fb830;
+    --gold:#d4a949;
+    --good:#6fae7c;
+    --danger:#d97a72;
+    --shadow: 0 2px 0 rgba(0,0,0,.4);
+
+    --suit-sword:#d1584f;
+    --suit-bow:#e0a24f;
+    --suit-spear:#6fae7c;
+    --suit-cavalry:#7cb0dd;
+    --suit-shield:#a084c9;
+    --suit-banner:#5cc0b3;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:'Zen Kaku Gothic New', 'Hiragino Sans', sans-serif;
+    background-image:
+      radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--gold) 6%, transparent), transparent 45%),
+      radial-gradient(circle at 90% 90%, color-mix(in srgb, var(--accentA) 5%, transparent), transparent 45%),
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink) 3%, transparent) 0px, transparent 1px 3px);
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:.001ms !important; transition-duration:.001ms !important;}
+  }
+
+  .app{max-width:1180px;margin:0 auto;padding:14px 14px 0;display:flex;flex-direction:column;min-height:100vh;gap:12px;}
+
+  /* header */
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;
+    border-bottom:2px solid var(--line);padding-bottom:10px;}
+  .masthead .title-block{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .title-en{font-family:'Shippori Mincho',serif;font-weight:800;font-size:22px;letter-spacing:.14em;color:var(--ink);}
+  .title-ja{font-family:'Shippori Mincho',serif;font-weight:600;font-size:15px;color:var(--ink-soft);letter-spacing:.06em;}
+  .masthead-actions{display:flex;gap:8px;}
+
+  button.chip{
+    font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg-elevated);
+    border:1px solid var(--line);border-radius:3px;padding:7px 12px;cursor:pointer;
+    box-shadow:var(--shadow);
+  }
+  button.chip:hover{border-color:var(--gold);color:var(--gold);}
+  button.chip:focus-visible, .flag-col:focus-visible, .pip:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+
+  /* pip overview strip */
+  .pips{display:flex;gap:6px;justify-content:center;}
+  .pip{width:26px;height:26px;border:1.5px solid var(--line);border-radius:2px;display:flex;align-items:center;justify-content:center;
+    font-size:11px;font-weight:700;color:var(--ink-soft);cursor:pointer;background:var(--bg-elevated);
+    clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);}
+  .pip[data-owner="0"]{background:var(--accentA);color:#fff;border-color:var(--accentA);}
+  .pip[data-owner="1"]{background:var(--accentB);color:#fff;border-color:var(--accentB);}
+
+  /* scoreboard rows */
+  .scorebar{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:4px;
+    background:var(--bg-elevated);border:1px solid var(--line);}
+  .scorebar .who{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
+  .scorebar .swatch{width:11px;height:11px;border-radius:2px;}
+  .scorebar.playerA{border-left:4px solid var(--accentA);}
+  .scorebar.playerB{border-left:4px solid var(--accentB);}
+  .scorebar.active{box-shadow:0 0 0 2px var(--gold) inset;}
+  .scorebar .stat{font-size:12px;color:var(--ink-soft);}
+  .scorebar .stat b{color:var(--ink);font-variant-numeric:tabular-nums;}
+
+  /* board */
+  .board-wrap{flex:1;overflow-x:auto;padding:4px 2px 10px;}
+  .board{display:flex;gap:8px;justify-content:center;min-width:min-content;}
+  .flag-col{
+    width:100px;flex:0 0 auto;display:flex;flex-direction:column;align-items:stretch;gap:4px;
+    background:var(--bg-elevated);border:1px solid var(--line);border-radius:5px;padding:6px 6px 8px;cursor:default;
+  }
+  .flag-col[data-targetable="1"]{cursor:pointer;border-color:var(--gold);box-shadow:0 0 0 2px color-mix(in srgb, var(--gold) 55%, transparent);}
+  .flag-col[data-targetable="1"]:hover{background:color-mix(in srgb, var(--gold) 12%, var(--bg-elevated));}
+  .zone{display:flex;flex-direction:column;gap:4px;min-height:100px;}
+  .zone.zoneA{flex-direction:column-reverse;}
+  .slot{height:auto;}
+  .slot.empty{height:31px;border:1px dashed var(--line);border-radius:3px;opacity:.5;}
+
+  .flagpole{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .flagpole .num{font-family:'Shippori Mincho',serif;font-weight:700;font-size:13px;color:var(--ink-soft);}
+  .flagpole .banner{width:34px;height:22px;clip-path:polygon(0 0,100% 15%,100% 85%,0 100%);background:var(--bg-sunken);border:1px solid var(--line);}
+  .flagpole[data-owner="0"] .banner{background:var(--accentA);border-color:var(--accentA);}
+  .flagpole[data-owner="1"] .banner{background:var(--accentB);border-color:var(--accentB);}
+  .flagpole .formation{font-size:9.5px;color:var(--ink-soft);text-align:center;line-height:1.2;min-height:2.2em;}
+
+  /* cards */
+  .card{
+    --sc:var(--ink-soft);
+    position:relative;border-radius:5px;border:1.5px solid var(--sc);
+    background:color-mix(in srgb, var(--sc) 14%, var(--bg-elevated));
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-family:inherit;color:var(--ink);
+  }
+  .card.sword{--sc:var(--suit-sword);} .card.bow{--sc:var(--suit-bow);} .card.spear{--sc:var(--suit-spear);}
+  .card.cavalry{--sc:var(--suit-cavalry);} .card.shield{--sc:var(--suit-shield);} .card.banner{--sc:var(--suit-banner);}
+
+  .board .card{width:100%;height:31px;flex-direction:row;gap:5px;padding:0 6px;justify-content:flex-start;}
+  .board .card .roundel{width:16px;height:16px;font-size:10px;}
+  .board .card .value{font-size:14px;}
+
+  .roundel{border-radius:50%;background:var(--sc);color:#fff;display:flex;align-items:center;justify-content:center;
+    font-weight:700;flex:0 0 auto;font-family:'Shippori Mincho',serif;}
+  .value{font-family:'Shippori Mincho',serif;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+
+  .hand-tray{border-top:2px solid var(--line);padding:10px 0 14px;display:flex;flex-direction:column;gap:8px;
+    position:sticky;bottom:0;background:var(--bg);}
+  .hand-tray .turn-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+  .turn-indicator{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .turn-indicator .swatch{width:11px;height:11px;border-radius:2px;}
+  .deck-count{font-size:12px;color:var(--ink-soft);}
+  .hand-row{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;min-height:112px;}
+
+  button.hand-card{
+    width:78px;height:104px;flex:0 0 auto;cursor:pointer;
+    clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);
+    transition:transform .12s ease;
+    gap:6px;
+  }
+  button.hand-card:hover{transform:translateY(-4px);}
+  button.hand-card.selected{transform:translateY(-8px);box-shadow:0 0 0 2px var(--gold);}
+  button.hand-card .roundel{width:26px;height:26px;font-size:14px;}
+  button.hand-card .value{font-size:30px;}
+  button.hand-card .name{font-size:9px;color:var(--ink-soft);letter-spacing:.05em;}
+
+  .empty-hand{color:var(--ink-soft);font-size:13px;padding:12px 4px;}
+
+  /* log */
+  .log-strip{border-top:1px solid var(--line);padding:6px 2px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);}
+  .log-strip b{color:var(--ink);font-weight:500;}
+  .log-strip button.chip{padding:4px 9px;font-size:11px;}
+
+  /* overlays */
+  .overlay{position:fixed;inset:0;background:color-mix(in srgb, var(--bg-sunken) 88%, transparent);
+    display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;}
+  .overlay .panel{background:var(--bg-elevated);border:1px solid var(--line);border-radius:8px;
+    padding:28px 26px;max-width:420px;width:100%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  .overlay .panel h2{font-family:'Shippori Mincho',serif;font-size:20px;margin:0 0 8px;}
+  .overlay .panel p{font-size:13.5px;color:var(--ink-soft);line-height:1.6;margin:0 0 18px;}
+  .overlay .panel .accent-name{font-weight:700;}
+  button.primary{
+    font-family:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accentA);
+    border:none;border-radius:4px;padding:11px 22px;cursor:pointer;
+  }
+  button.primary:hover{filter:brightness(1.08);}
+
+  .rules-panel{max-width:560px;text-align:left;max-height:80vh;overflow-y:auto;}
+  .rules-panel h2{font-family:'Shippori Mincho',serif;}
+  .rules-panel h3{font-size:13.5px;margin:16px 0 6px;color:var(--gold);}
+  .rules-panel ol,.rules-panel ul{margin:0;padding-left:20px;font-size:13px;line-height:1.75;color:var(--ink);}
+  .rules-panel .note{margin-top:16px;padding:10px 12px;background:var(--bg-sunken);border-radius:5px;font-size:12px;color:var(--ink-soft);line-height:1.6;}
+  .formation-table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px;}
+  .formation-table th,.formation-table td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;}
+  .formation-table th{color:var(--ink-soft);font-weight:500;}
+
+  .close-x{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--ink-soft);font-size:18px;cursor:pointer;}
+
+  @media (max-width:640px){
+    .flag-col{width:78px;}
+    button.hand-card{width:66px;height:90px;}
+    button.hand-card .value{font-size:24px;}
+    .title-en{font-size:18px;}
+  }
+</style>
+
+<div class="app" id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SUITS = [
+    {id:'sword',   kanji:'剣', name:'剣士隊'},
+    {id:'bow',     kanji:'弓', name:'弓兵隊'},
+    {id:'spear',   kanji:'槍', name:'槍兵隊'},
+    {id:'cavalry', kanji:'騎', name:'騎兵隊'},
+    {id:'shield',  kanji:'盾', name:'盾兵隊'},
+    {id:'banner',  kanji:'旗', name:'旗手隊'}
+  ];
+  var SUIT_BY_ID = {};
+  SUITS.forEach(function(s){ SUIT_BY_ID[s.id]=s; });
+
+  var STORAGE_KEY = 'battleline_state_v1';
+  var game = null;
+
+  function freshDeck(){
+    var deck = [];
+    SUITS.forEach(function(s){
+      for(var v=1; v<=10; v++){ deck.push({id:s.id+'-'+v, suit:s.id, value:v}); }
+    });
+    for(var i=deck.length-1;i>0;i--){
+      var j = Math.floor(Math.random()*(i+1));
+      var t = deck[i]; deck[i]=deck[j]; deck[j]=t;
+    }
+    return deck;
+  }
+
+  function newGame(){
+    var deck = freshDeck();
+    var flags = [];
+    for(var i=0;i<9;i++){
+      flags.push({num:i+1, slots:[[],[]], claimedBy:null, formation:null});
+    }
+    game = {
+      names:['プレイヤーA','プレイヤーB'],
+      hands:[deck.splice(0,7), deck.splice(0,7)],
+      deck: deck,
+      flags: flags,
+      current: 0,
+      selected: null,
+      log: ['両軍が布陣を開始した。プレイヤーAの手番。'],
+      gameOver:false,
+      winner:null,
+      reason:null,
+      pendingReveal:false,
+      showRules:false
+    };
+    save();
+  }
+
+  function save(){
+    try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(game)); }catch(e){}
+  }
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if(!raw) return false;
+      var parsed = JSON.parse(raw);
+      if(!parsed || !parsed.flags || !parsed.hands) return false;
+      game = parsed;
+      return true;
+    }catch(e){ return false; }
+  }
+
+  function evaluateFormation(cards){
+    var values = cards.map(function(c){return c.value;}).sort(function(a,b){return a-b;});
+    var suits = cards.map(function(c){return c.suit;});
+    var sameSuit = suits.every(function(s){return s===suits[0];});
+    var sameValue = values[0]===values[1] && values[1]===values[2];
+    var isSeq = values[1]===values[0]+1 && values[2]===values[1]+1;
+    var sum = values[0]+values[1]+values[2];
+    var rank, label, tiebreak;
+    if(sameSuit && isSeq){ rank=5; label='楔形陣'; tiebreak=values[2]; }
+    else if(sameValue){ rank=4; label='方陣'; tiebreak=values[0]; }
+    else if(sameSuit){ rank=3; label='陣列'; tiebreak=sum; }
+    else if(isSeq){ rank=2; label='散兵線'; tiebreak=values[2]; }
+    else { rank=1; label='混成隊'; tiebreak=sum; }
+    return {rank:rank, label:label, sum:sum, tiebreak:tiebreak, sortedDesc:values.slice().reverse()};
+  }
+
+  function compareFormations(a,b){
+    if(a.rank!==b.rank) return a.rank-b.rank;
+    if(a.tiebreak!==b.tiebreak) return a.tiebreak-b.tiebreak;
+    if(a.sum!==b.sum) return a.sum-b.sum;
+    for(var i=0;i<3;i++){
+      if(a.sortedDesc[i]!==b.sortedDesc[i]) return a.sortedDesc[i]-b.sortedDesc[i];
+    }
+    return 0;
+  }
+
+  function resolveFlag(idx){
+    var flag = game.flags[idx];
+    if(flag.claimedBy!==null) return;
+    if(flag.slots[0].length===3 && flag.slots[1].length===3){
+      var evalA = evaluateFormation(flag.slots[0]);
+      var evalB = evaluateFormation(flag.slots[1]);
+      var cmp = compareFormations(evalA, evalB);
+      var winner = cmp>=0 ? 0 : 1;
+      flag.claimedBy = winner;
+      flag.formation = winner===0 ? evalA.label : evalB.label;
+      game.log.push('第'+flag.num+'旗は「'+flag.formation+'」を敷いた'+game.names[winner]+'が制圧した。');
+    }
+  }
+
+  function checkVictory(){
+    var counts=[0,0];
+    game.flags.forEach(function(f){ if(f.claimedBy!==null) counts[f.claimedBy]++; });
+    if(counts[0]>=5) return {winner:0, reason:'5本の軍旗を確保'};
+    if(counts[1]>=5) return {winner:1, reason:'5本の軍旗を確保'};
+    for(var i=0;i<=6;i++){
+      var a=game.flags[i].claimedBy, b=game.flags[i+1].claimedBy, c=game.flags[i+2].claimedBy;
+      if(a!==null && a===b && b===c) return {winner:a, reason:'3本の軍旗を連結'};
+    }
+    return null;
+  }
+
+  function suitName(id){ return SUIT_BY_ID[id].name; }
+  function suitKanji(id){ return SUIT_BY_ID[id].kanji; }
+
+  function canPlace(flagIdx){
+    var flag = game.flags[flagIdx];
+    return flag.claimedBy===null && flag.slots[game.current].length<3;
+  }
+
+  function handleEmptyHands(){
+    var guard=0;
+    while(!game.gameOver && game.hands[game.current].length===0 && guard<4){
+      guard++;
+      var other = 1-game.current;
+      if(game.hands[other].length===0 && game.deck.length===0){
+        var counts=[0,0];
+        game.flags.forEach(function(f){ if(f.claimedBy!==null) counts[f.claimedBy]++; });
+        game.gameOver = true;
+        if(counts[0]>counts[1]){ game.winner=0; }
+        else if(counts[1]>counts[0]){ game.winner=1; }
+        else { game.winner=null; }
+        game.reason = '双方の手札が尽きた（獲得旗数で判定）';
+        game.log.push('両軍とも兵を出し尽くした。'+(game.winner!==null ? game.names[game.winner]+'が旗数で優勢。' : '互角のまま終戦。'));
+        return;
+      } else {
+        game.log.push(game.names[game.current]+'は手札が尽きたため手番を送った。');
+        game.current = other;
+      }
+    }
+  }
+
+  function playCard(handIdx, flagIdx){
+    if(game.gameOver || game.pendingReveal) return;
+    if(!canPlace(flagIdx)) return;
+    var card = game.hands[game.current].splice(handIdx,1)[0];
+    if(!card) return;
+    game.flags[flagIdx].slots[game.current].push(card);
+    game.log.push(game.names[game.current]+'が第'+game.flags[flagIdx].num+'旗に'+suitName(card.suit)+'『'+card.value+'』を配置。');
+    game.selected = null;
+    resolveFlag(flagIdx);
+
+    var v = checkVictory();
+    if(v){
+      game.gameOver = true;
+      game.winner = v.winner;
+      game.reason = v.reason;
+      game.log.push(game.names[v.winner]+'の勝利！（'+v.reason+'）');
+      save(); render();
+      return;
+    }
+
+    if(game.deck.length>0){
+      game.hands[game.current].push(game.deck.shift());
+    }
+    game.current = 1-game.current;
+    handleEmptyHands();
+    if(!game.gameOver){ game.pendingReveal = true; }
+    save();
+    render();
+  }
+
+  function selectCard(handIdx){
+    if(game.gameOver || game.pendingReveal) return;
+    game.selected = (game.selected===handIdx) ? null : handIdx;
+    render();
+  }
+
+  function onFlagClick(flagIdx){
+    if(game.selected===null) return;
+    playCard(game.selected, flagIdx);
+  }
+
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+
+  function cardHTML(card, big){
+    var s = SUIT_BY_ID[card.suit];
+    if(big){
+      return '<span class="roundel">'+s.kanji+'</span>' +
+             '<span class="value">'+card.value+'</span>' +
+             '<span class="name">'+s.name+'</span>';
+    }
+    return '<span class="roundel">'+s.kanji+'</span><span class="value">'+card.value+'</span>';
+  }
+
+  function render(){
+    var app = document.getElementById('app');
+    var html = '';
+
+    html += '<div class="masthead">';
+    html += '  <div class="title-block"><span class="title-en">BATTLE LINE</span><span class="title-ja">バトルライン — 二人用戦線ゲーム</span></div>';
+    html += '  <div class="masthead-actions">';
+    html += '    <button class="chip" data-action="rules">遊び方</button>';
+    html += '    <button class="chip" data-action="restart">はじめから</button>';
+    html += '  </div>';
+    html += '</div>';
+
+    html += '<div class="pips" role="group" aria-label="全9旗の状況">';
+    game.flags.forEach(function(f){
+      html += '<div class="pip" data-owner="'+(f.claimedBy===null?'':f.claimedBy)+'" data-action="scrollflag" data-flag="'+f.num+'" tabindex="0" title="第'+f.num+'旗'+(f.formation?'：'+f.formation:'')+'">'+f.num+'</div>';
+    });
+    html += '</div>';
+
+    [0,1].forEach(function(p){
+      var count = game.flags.filter(function(f){return f.claimedBy===p;}).length;
+      var accentClass = p===0 ? 'playerA' : 'playerB';
+      var isActive = (game.current===p && !game.gameOver);
+      html += '<div class="scorebar '+accentClass+(isActive?' active':'')+'">';
+      html += '  <div class="who"><span class="swatch" style="background:'+(p===0?'var(--accentA)':'var(--accentB)')+'"></span>'+esc(game.names[p])+(isActive?'　<span style="color:var(--gold);font-size:11px;">● 手番</span>':'')+'</div>';
+      html += '  <div class="stat">獲得旗 <b>'+count+'</b> / 5　手札 <b>'+game.hands[p].length+'</b>枚</div>';
+      html += '</div>';
+    });
+
+    html += '<div class="board-wrap"><div class="board">';
+    game.flags.forEach(function(f, idx){
+      var targetable = !game.gameOver && !game.pendingReveal && game.selected!==null && canPlace(idx);
+      html += '<div class="flag-col" id="flagcol-'+f.num+'" data-action="flag" data-flag="'+idx+'" data-targetable="'+(targetable?'1':'0')+'" tabindex="0" role="button" aria-label="第'+f.num+'旗に配置">';
+
+      html += '<div class="zone zoneA">';
+      for(var i=0;i<3;i++){
+        var c = f.slots[0][i];
+        html += c ? '<div class="card '+c.suit+'">'+cardHTML(c,false)+'</div>' : '<div class="slot empty"></div>';
+      }
+      html += '</div>';
+
+      html += '<div class="flagpole" data-owner="'+(f.claimedBy===null?'':f.claimedBy)+'">';
+      html += '  <span class="banner"></span><span class="num">第'+f.num+'旗</span>';
+      html += '  <span class="formation">'+(f.formation? esc(f.formation) : '&nbsp;')+'</span>';
+      html += '</div>';
+
+      html += '<div class="zone zoneB">';
+      for(var j=0;j<3;j++){
+        var c2 = f.slots[1][j];
+        html += c2 ? '<div class="card '+c2.suit+'">'+cardHTML(c2,false)+'</div>' : '<div class="slot empty"></div>';
+      }
+      html += '</div>';
+
+      html += '</div>';
+    });
+    html += '</div></div>';
+
+    html += '<div class="hand-tray">';
+    html += '<div class="turn-row">';
+    html += '  <div class="turn-indicator"><span class="swatch" style="background:'+(game.current===0?'var(--accentA)':'var(--accentB)')+'"></span>'+esc(game.names[game.current])+'の手番　<span style="font-weight:400;color:var(--ink-soft);font-size:12px;">（札を選び、次に旗を選んで配置）</span></div>';
+    html += '  <div class="deck-count">山札残り '+game.deck.length+' 枚</div>';
+    html += '</div>';
+    html += '<div class="hand-row">';
+    var hand = game.hands[game.current];
+    if(hand.length===0){
+      html += '<div class="empty-hand">手札がありません。手番は自動的に送られます。</div>';
+    } else {
+      hand.forEach(function(c, i){
+        var sel = (game.selected===i) ? ' selected' : '';
+        html += '<button class="hand-card card '+c.suit+sel+'" data-action="select" data-idx="'+i+'">'+cardHTML(c,true)+'</button>';
+      });
+    }
+    html += '</div>';
+    html += '</div>';
+
+    html += '<div class="log-strip"><span>戦況記録：</span><b>'+esc(game.log[game.log.length-1]||'')+'</b><button class="chip" data-action="log">履歴</button></div>';
+
+    if(game.pendingReveal && !game.gameOver){
+      html += '<div class="overlay"><div class="panel">';
+      html += '<h2>手番交代</h2>';
+      html += '<p>画面を渡してください。<br>次は <span class="accent-name" style="color:'+(game.current===0?'var(--accentA)':'var(--accentB)')+'">'+esc(game.names[game.current])+'</span> の番です。</p>';
+      html += '<button class="primary" data-action="reveal">準備できた</button>';
+      html += '</div></div>';
+    }
+
+    if(game.gameOver){
+      html += '<div class="overlay"><div class="panel">';
+      if(game.winner!==null){
+        html += '<h2>'+esc(game.names[game.winner])+'の勝利</h2>';
+        html += '<p>'+esc(game.reason)+'</p>';
+      } else {
+        html += '<h2>引き分け</h2><p>'+esc(game.reason||'')+'</p>';
+      }
+      html += '<button class="primary" data-action="restart">もう一度戦う</button>';
+      html += '</div></div>';
+    }
+
+    if(game.showRules){
+      html += '<div class="overlay" data-action="closerules-bg"><div class="panel rules-panel">';
+      html += '<button class="close-x" data-action="closerules">×</button>';
+      html += '<h2>バトルラインの遊び方</h2>';
+      html += '<h3>準備</h3>';
+      html += '<p style="font-size:13px;line-height:1.7;">6つの兵科（剣士・弓兵・槍兵・騎兵・盾兵・旗手）×値1〜10、計60枚の部隊カードを使用。各プレイヤーは7枚の手札を持ち、盤上には9本の軍旗が並ぶ。</p>';
+      html += '<h3>手番の流れ</h3>';
+      html += '<ol><li>手札から1枚を選び、決着のついていない旗の自分側（最大3枚まで）に配置する。</li><li>山札が残っていれば1枚引いて手札を7枚に戻す。</li><li>相手の手番に移る。</li></ol>';
+      html += '<h3>旗の決着</h3>';
+      html += '<p style="font-size:13px;line-height:1.7;">両陣営がその旗に3枚ずつ配置した時点で自動的に判定される。強い陣形を敷いた側がその旗を制圧する。</p>';
+      html += '<table class="formation-table"><thead><tr><th>陣形（強い順）</th><th>条件</th></tr></thead><tbody>';
+      html += '<tr><td>楔形陣</td><td>同じ兵科で連続した数値3枚</td></tr>';
+      html += '<tr><td>方陣</td><td>同じ数値が3枚（兵科は異なる）</td></tr>';
+      html += '<tr><td>陣列</td><td>同じ兵科3枚（数値は不連続）</td></tr>';
+      html += '<tr><td>散兵線</td><td>異なる兵科で連続した数値3枚</td></tr>';
+      html += '<tr><td>混成隊</td><td>上記のいずれにも当てはまらない3枚（合計値で比較）</td></tr>';
+      html += '</tbody></table>';
+      html += '<h3>勝利条件</h3>';
+      html += '<ul><li>9本のうち5本の軍旗を確保する。</li><li>または隣接する3本の軍旗を連続して確保する。</li></ul>';
+      html += '<div class="note">本実装は画面を交互に回して遊ぶ対面プレイ向けの簡易版です。原作にある戦術カード（アレクサンダーやダリウスなどの特殊カード）と、両者が3枚に達する前に旗の決着を早期宣言するルールは省略し、誰でもすぐ遊べる基本の部隊カードのみで構成しています。</div>';
+      html += '</div></div>';
+    }
+
+    app.innerHTML = html;
+  }
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-action]');
+    if(!el) return;
+    var action = el.getAttribute('data-action');
+    if(action==='select'){
+      selectCard(parseInt(el.getAttribute('data-idx'),10));
+    } else if(action==='flag'){
+      onFlagClick(parseInt(el.getAttribute('data-flag'),10));
+    } else if(action==='reveal'){
+      game.pendingReveal = false; save(); render();
+    } else if(action==='restart'){
+      if(game.gameOver || confirm('現在の対局を終了して、はじめからやり直しますか？')){
+        newGame(); render();
+      }
+    } else if(action==='rules'){
+      game.showRules = true; render();
+    } else if(action==='closerules' || action==='closerules-bg'){
+      if(action==='closerules-bg' && e.target!==el) return;
+      game.showRules = false; render();
+    } else if(action==='log'){
+      alert(game.log.slice().reverse().join('\n'));
+    } else if(action==='scrollflag'){
+      var num = el.getAttribute('data-flag');
+      var target = document.getElementById('flagcol-'+num);
+      if(target) target.scrollIntoView({behavior:'smooth', inline:'center', block:'nearest'});
+    }
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key!=='Enter' && e.key!==' ') return;
+    var el = e.target.closest('[data-action="flag"]');
+    if(el){ e.preventDefault(); onFlagClick(parseInt(el.getAttribute('data-flag'),10)); }
+  });
+
+  if(!load()){ newGame(); }
+  render();
+})();
+</script>

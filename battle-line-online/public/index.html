@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<title>バトルライン オンライン</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;600;800&family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+  :root{
+    --bg:#ece3cd; --bg-elevated:#f6efdc; --bg-sunken:#e0d5b8;
+    --ink:#2a2419; --ink-soft:#6b6046; --line:#c2b28c;
+    --accentA:#7a2e2e; --accentB:#1f5566; --gold:#9c7a2c;
+    --good:#3f7a4e; --danger:#9c3b3b;
+    --shadow: 0 2px 0 rgba(42,36,25,.12);
+    --suit-sword:#a53a34; --suit-bow:#b8791f; --suit-spear:#3f7a4e;
+    --suit-cavalry:#33608f; --suit-shield:#6a4a8f; --suit-banner:#2f8f82;
+    --tactics:#6a4a1f;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --bg:#181510; --bg-elevated:#242019; --bg-sunken:#100e0a;
+      --ink:#ecdfc0; --ink-soft:#b1a37c; --line:#4a4227;
+      --accentA:#c25b50; --accentB:#5a9fb8; --gold:#d4a949;
+      --good:#6fae7c; --danger:#d97a72; --shadow: 0 2px 0 rgba(0,0,0,.4);
+      --suit-sword:#d1584f; --suit-bow:#e0a24f; --suit-spear:#6fae7c;
+      --suit-cavalry:#7cb0dd; --suit-shield:#a084c9; --suit-banner:#5cc0b3;
+      --tactics:#d4a949;
+    }
+  }
+  :root[data-theme="dark"]{
+    --bg:#181510; --bg-elevated:#242019; --bg-sunken:#100e0a;
+    --ink:#ecdfc0; --ink-soft:#b1a37c; --line:#4a4227;
+    --accentA:#c25b50; --accentB:#5a9fb8; --gold:#d4a949;
+    --good:#6fae7c; --danger:#d97a72; --shadow: 0 2px 0 rgba(0,0,0,.4);
+    --suit-sword:#d1584f; --suit-bow:#e0a24f; --suit-spear:#6fae7c;
+    --suit-cavalry:#7cb0dd; --suit-shield:#a084c9; --suit-banner:#5cc0b3;
+    --tactics:#d4a949;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'Zen Kaku Gothic New','Hiragino Sans',sans-serif;
+    background-image:
+      radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--gold) 6%, transparent), transparent 45%),
+      radial-gradient(circle at 90% 90%, color-mix(in srgb, var(--accentA) 5%, transparent), transparent 45%),
+      repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink) 3%, transparent) 0px, transparent 1px 3px);
+  }
+  @media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+  .app{max-width:1180px;margin:0 auto;padding:14px 14px 0;display:flex;flex-direction:column;min-height:100vh;gap:12px;}
+
+  .masthead{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px;border-bottom:2px solid var(--line);padding-bottom:10px;}
+  .masthead .title-block{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;}
+  .title-en{font-family:'Shippori Mincho',serif;font-weight:800;font-size:22px;letter-spacing:.14em;}
+  .title-ja{font-family:'Shippori Mincho',serif;font-weight:600;font-size:14px;color:var(--ink-soft);}
+  .masthead-actions{display:flex;gap:8px;}
+
+  button.chip{font-family:inherit;font-size:12.5px;color:var(--ink);background:var(--bg-elevated);border:1px solid var(--line);border-radius:3px;padding:7px 12px;cursor:pointer;box-shadow:var(--shadow);}
+  button.chip:hover{border-color:var(--gold);color:var(--gold);}
+  button.chip:disabled{opacity:.4;cursor:not-allowed;}
+  button.chip:focus-visible,[role="button"]:focus-visible{outline:2px solid var(--gold);outline-offset:2px;}
+
+  /* lobby */
+  .lobby-wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:20px 0;}
+  .lobby-card{background:var(--bg-elevated);border:1px solid var(--line);border-radius:8px;padding:28px 26px;max-width:420px;width:100%;}
+  .lobby-card h1{font-family:'Shippori Mincho',serif;font-size:22px;margin:0 0 4px;}
+  .lobby-card .sub{color:var(--ink-soft);font-size:13px;margin:0 0 20px;}
+  .field{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+  .field label{font-size:12px;color:var(--ink-soft);}
+  .field input{font-family:inherit;font-size:15px;padding:9px 10px;border:1px solid var(--line);border-radius:4px;background:var(--bg);color:var(--ink);}
+  .field input:focus-visible{outline:2px solid var(--gold);}
+  button.primary{font-family:inherit;font-weight:700;font-size:14px;color:#fff;background:var(--accentA);border:none;border-radius:4px;padding:11px 22px;cursor:pointer;width:100%;}
+  button.primary:hover{filter:brightness(1.08);}
+  button.primary:disabled{opacity:.5;cursor:not-allowed;}
+  .divider{display:flex;align-items:center;gap:10px;color:var(--ink-soft);font-size:12px;margin:18px 0;}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
+  .room-code-row{display:flex;gap:8px;}
+  .room-code-row input{flex:1;text-transform:uppercase;letter-spacing:.15em;font-weight:700;text-align:center;}
+  .room-code-row button{flex:0 0 auto;}
+  .error-text{color:var(--danger);font-size:12.5px;margin:-6px 0 14px;min-height:1em;}
+
+  .waiting-panel{text-align:center;}
+  .room-code-display{font-family:'Shippori Mincho',serif;font-size:34px;font-weight:800;letter-spacing:.2em;color:var(--gold);margin:6px 0 4px;}
+  .share-line{font-size:12.5px;color:var(--ink-soft);word-break:break-all;background:var(--bg-sunken);border-radius:4px;padding:8px 10px;margin:10px 0;}
+  .spinner-text{margin-top:16px;font-size:13px;color:var(--ink-soft);}
+
+  /* pips */
+  .pips{display:flex;gap:6px;justify-content:center;}
+  .pip{width:26px;height:26px;border:1.5px solid var(--line);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:var(--ink-soft);background:var(--bg-elevated);clip-path:polygon(0 0,100% 0,100% 65%,50% 100%,0 65%);}
+  .pip[data-owner="0"]{background:var(--accentA);color:#fff;border-color:var(--accentA);}
+  .pip[data-owner="1"]{background:var(--accentB);color:#fff;border-color:var(--accentB);}
+
+  /* scoreboard */
+  .scorebar{display:flex;align-items:center;justify-content:space-between;padding:6px 10px;border-radius:4px;background:var(--bg-elevated);border:1px solid var(--line);gap:8px;flex-wrap:wrap;}
+  .scorebar .who{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;}
+  .scorebar .swatch{width:11px;height:11px;border-radius:2px;flex:0 0 auto;}
+  .scorebar.playerA{border-left:4px solid var(--accentA);}
+  .scorebar.playerB{border-left:4px solid var(--accentB);}
+  .scorebar.active{box-shadow:0 0 0 2px var(--gold) inset;}
+  .scorebar .stat{font-size:12px;color:var(--ink-soft);}
+  .scorebar .stat b{color:var(--ink);font-variant-numeric:tabular-nums;}
+  .conn-dot{width:7px;height:7px;border-radius:50%;background:var(--good);display:inline-block;}
+  .conn-dot.off{background:var(--danger);}
+
+  /* board */
+  .board-wrap{flex:1;overflow-x:auto;padding:4px 2px 10px;}
+  .board{display:flex;gap:8px;justify-content:center;min-width:min-content;}
+  .flag-col{width:104px;flex:0 0 auto;display:flex;flex-direction:column;align-items:stretch;gap:4px;background:var(--bg-elevated);border:1px solid var(--line);border-radius:5px;padding:6px 6px 8px;}
+  .flag-col[data-targetable="1"]{cursor:pointer;border-color:var(--gold);box-shadow:0 0 0 2px color-mix(in srgb, var(--gold) 55%, transparent);}
+  .flag-col[data-targetable="1"]:hover{background:color-mix(in srgb, var(--gold) 12%, var(--bg-elevated));}
+  .zone{display:flex;flex-direction:column;gap:4px;min-height:100px;}
+  .zone.zoneA{flex-direction:column-reverse;}
+  .slot.empty{height:31px;border:1px dashed var(--line);border-radius:3px;opacity:.5;}
+  .tags{display:flex;gap:3px;justify-content:center;min-height:14px;}
+  .tag{font-size:9px;padding:1px 5px;border-radius:8px;background:var(--bg-sunken);color:var(--ink-soft);border:1px solid var(--line);}
+
+  .flagpole{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);}
+  .flagpole .num{font-family:'Shippori Mincho',serif;font-weight:700;font-size:13px;color:var(--ink-soft);}
+  .flagpole .banner{width:34px;height:22px;clip-path:polygon(0 0,100% 15%,100% 85%,0 100%);background:var(--bg-sunken);border:1px solid var(--line);}
+  .flagpole[data-owner="0"] .banner{background:var(--accentA);border-color:var(--accentA);}
+  .flagpole[data-owner="1"] .banner{background:var(--accentB);border-color:var(--accentB);}
+  .flagpole .formation{font-size:9.5px;color:var(--ink-soft);text-align:center;line-height:1.2;min-height:2.2em;}
+
+  .card{--sc:var(--ink-soft);position:relative;border-radius:5px;border:1.5px solid var(--sc);background:color-mix(in srgb, var(--sc) 14%, var(--bg-elevated));display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:inherit;color:var(--ink);}
+  .card.sword{--sc:var(--suit-sword);} .card.bow{--sc:var(--suit-bow);} .card.spear{--sc:var(--suit-spear);}
+  .card.cavalry{--sc:var(--suit-cavalry);} .card.shield{--sc:var(--suit-shield);} .card.banner{--sc:var(--suit-banner);}
+  .card.wildcard{--sc:var(--gold);}
+
+  .board .card{width:100%;height:31px;flex-direction:row;gap:5px;padding:0 6px;justify-content:flex-start;}
+  .board .card .roundel{width:16px;height:16px;font-size:10px;}
+  .board .card .value{font-size:14px;}
+  .board .card.pickable{cursor:pointer;box-shadow:0 0 0 2px var(--gold);}
+  .board .card.pickable:hover{filter:brightness(1.1);}
+
+  .roundel{border-radius:50%;background:var(--sc);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex:0 0 auto;font-family:'Shippori Mincho',serif;}
+  .value{font-family:'Shippori Mincho',serif;font-weight:800;line-height:1;font-variant-numeric:tabular-nums;}
+
+  .hand-tray{border-top:2px solid var(--line);padding:10px 0 14px;display:flex;flex-direction:column;gap:8px;position:sticky;bottom:0;background:var(--bg);}
+  .turn-row{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px;}
+  .turn-indicator{font-weight:700;font-size:14px;display:flex;align-items:center;gap:8px;}
+  .turn-indicator .swatch{width:11px;height:11px;border-radius:2px;}
+  .deck-count{font-size:12px;color:var(--ink-soft);display:flex;gap:10px;}
+  .hand-row{display:flex;gap:8px;overflow-x:auto;padding:4px 2px 8px;min-height:112px;}
+
+  button.hand-card{width:80px;height:106px;flex:0 0 auto;cursor:pointer;transition:transform .12s ease;gap:5px;padding:6px 4px;}
+  button.hand-card.troop-face{clip-path:polygon(0 0,100% 0,100% 78%,50% 100%,0 78%);}
+  button.hand-card.tactics-face{border-radius:6px;border-style:double;border-width:4px;}
+  button.hand-card:hover{transform:translateY(-4px);}
+  button.hand-card.selected{transform:translateY(-8px);box-shadow:0 0 0 2px var(--gold);}
+  button.hand-card:disabled{opacity:.45;cursor:not-allowed;transform:none;}
+  button.hand-card .roundel{width:26px;height:26px;font-size:14px;}
+  button.hand-card .value{font-size:28px;}
+  button.hand-card .name{font-size:8.5px;color:var(--ink-soft);letter-spacing:.03em;text-align:center;line-height:1.3;}
+  button.hand-card .tname{font-family:'Shippori Mincho',serif;font-weight:700;font-size:12px;color:var(--tactics);text-align:center;line-height:1.3;}
+
+  .empty-hand{color:var(--ink-soft);font-size:13px;padding:12px 4px;}
+
+  .action-panel{background:var(--bg-elevated);border:1px solid var(--gold);border-radius:5px;padding:10px 12px;font-size:12.5px;display:flex;flex-direction:column;gap:8px;}
+  .action-panel .hint{color:var(--ink);font-weight:700;}
+  .picker-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .pick-btn{font-family:inherit;font-size:12px;padding:6px 10px;border-radius:4px;border:1px solid var(--line);background:var(--bg);color:var(--ink);cursor:pointer;}
+  .pick-btn.on{background:var(--gold);color:#fff;border-color:var(--gold);}
+  .pick-btn:disabled{opacity:.4;cursor:not-allowed;}
+  .scout-slot{display:flex;align-items:center;gap:6px;font-size:12px;}
+
+  .draw-prompt{background:var(--bg-elevated);border:1px solid var(--gold);border-radius:5px;padding:10px 12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13px;}
+
+  .log-strip{border-top:1px solid var(--line);padding:6px 2px;display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-soft);flex-wrap:wrap;}
+  .log-strip b{color:var(--ink);font-weight:500;}
+
+  .banner-notice{text-align:center;font-size:12.5px;padding:6px;border-radius:4px;background:var(--bg-sunken);color:var(--ink-soft);}
+
+  .overlay{position:fixed;inset:0;background:color-mix(in srgb, var(--bg-sunken) 88%, transparent);display:flex;align-items:center;justify-content:center;padding:20px;z-index:20;}
+  .overlay .panel{background:var(--bg-elevated);border:1px solid var(--line);border-radius:8px;padding:26px;max-width:460px;width:100%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  .overlay .panel h2{font-family:'Shippori Mincho',serif;font-size:20px;margin:0 0 8px;}
+  .overlay .panel p{font-size:13.5px;color:var(--ink-soft);line-height:1.6;}
+  .scout-card-btn{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;padding:10px 12px;margin:6px 0;border:1px solid var(--line);border-radius:5px;background:var(--bg);color:var(--ink);font-family:inherit;font-size:13px;cursor:pointer;}
+  .scout-card-btn:hover{border-color:var(--gold);}
+
+  .rules-panel{max-width:560px;text-align:left;max-height:80vh;overflow-y:auto;}
+  .rules-panel h3{font-size:13.5px;margin:16px 0 6px;color:var(--gold);}
+  .rules-panel table{width:100%;border-collapse:collapse;font-size:12.5px;margin-top:6px;}
+  .rules-panel th,.rules-panel td{border-bottom:1px solid var(--line);padding:5px 6px;text-align:left;}
+  .close-x{position:absolute;top:10px;right:12px;background:none;border:none;color:var(--ink-soft);font-size:18px;cursor:pointer;}
+
+  @media (max-width:640px){
+    .flag-col{width:80px;}
+    button.hand-card{width:68px;height:92px;}
+    button.hand-card .value{font-size:22px;}
+    .title-en{font-size:18px;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  var SUITS = [
+    {id:'sword', kanji:'剣', name:'剣士隊'},
+    {id:'bow', kanji:'弓', name:'弓兵隊'},
+    {id:'spear', kanji:'槍', name:'槍兵隊'},
+    {id:'cavalry', kanji:'騎', name:'騎兵隊'},
+    {id:'shield', kanji:'盾', name:'盾兵隊'},
+    {id:'banner', kanji:'旗', name:'旗手隊'}
+  ];
+  var SUIT_BY_ID = {}; SUITS.forEach(function(s){ SUIT_BY_ID[s.id]=s; });
+
+  var TACTICS_META = {
+    alexander: {name:'アレクサンダー大王', kanji:'雄', kind:'wild-full', desc:'任意の兵科・数値の部隊カードとして使用できる。'},
+    darius:    {name:'ダレイオス一世',     kanji:'王', kind:'wild-full', desc:'任意の兵科・数値の部隊カードとして使用できる。'},
+    companion: {name:'近衛騎兵',           kanji:'衛', kind:'wild-num',  desc:'兵科を持たない任意の数値として使用できる（楔形陣・陣列には使えない）。'},
+    fog:       {name:'霧',                kanji:'霧', kind:'env',       desc:'指定した旗を、以後ずっと混成隊（合計値）判定にする。'},
+    mud:       {name:'泥濘',              kanji:'泥', kind:'env',       desc:'指定した旗の決着条件を、各3枚から4枚に変更する。'},
+    scout:     {name:'斥候',              kanji:'斥', kind:'action',    desc:'山札から合計3枚を確認し、1枚を手札に、残り2枚を山札の底へ戻す。'},
+    redeploy:  {name:'再配置',            kanji:'再', kind:'action',    desc:'未決着の旗にある自分の札を1枚、別の未決着の旗へ移動する。'},
+    deserter:  {name:'離反工作',          kanji:'離', kind:'action',    desc:'未決着の旗にある相手の札を1枚、除外する。'}
+  };
+
+  var STORAGE_KEY = 'battleline_online_session_v1';
+  var ws = null;
+  var me = { roomId:null, token:null, playerIdx:null };
+  var view = null;
+  var ui = { mode:null, error:null, showRules:false };
+
+  function wsUrl(){
+    var proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+    return proto + location.host;
+  }
+
+  function connect(){
+    ws = new WebSocket(wsUrl());
+    ws.onopen = function(){
+      var saved = loadSession();
+      if(saved){ send({type:'rejoin', roomId:saved.roomId, token:saved.token}); }
+      else { render(); }
+    };
+    ws.onmessage = function(ev){
+      var msg;
+      try{ msg = JSON.parse(ev.data); }catch(e){ return; }
+      if(msg.type === 'joined'){
+        me.roomId = msg.roomId; me.token = msg.token; me.playerIdx = msg.playerIdx;
+        saveSession({roomId:msg.roomId, token:msg.token});
+        ui.error = null;
+      } else if(msg.type === 'state'){
+        view = msg.state;
+        ui.mode = null;
+      } else if(msg.type === 'error'){
+        ui.error = msg.message;
+      }
+      render();
+    };
+    ws.onclose = function(){
+      ui.error = 'サーバーとの接続が切れました。ページを再読み込みしてください。';
+      render();
+    };
+  }
+
+  function send(obj){ if(ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(obj)); }
+
+  function saveSession(s){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }catch(e){} }
+  function loadSession(){ try{ var r = localStorage.getItem(STORAGE_KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; } }
+  function clearSession(){ try{ localStorage.removeItem(STORAGE_KEY); }catch(e){} }
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+
+  function capacityOf(flag){ return flag.mud ? 4 : 3; }
+
+  function troopCardHTML(card, big){
+    if(card.suit === null || card.suit === undefined){
+      var wildName = card.wild ? (TACTICS_META[card.wild] ? TACTICS_META[card.wild].name : '') : '無所属';
+      if(big){
+        return '<span class="roundel" style="background:var(--gold)">無</span><span class="value">'+card.value+'</span><span class="name">'+esc(wildName)+'</span>';
+      }
+      return '<span class="roundel" style="background:var(--gold)">無</span><span class="value">'+card.value+'</span>';
+    }
+    var s = SUIT_BY_ID[card.suit];
+    var star = card.wild ? ' ★' : '';
+    if(big){
+      return '<span class="roundel">'+s.kanji+'</span><span class="value">'+card.value+'</span><span class="name">'+esc(s.name)+star+'</span>';
+    }
+    return '<span class="roundel">'+s.kanji+'</span><span class="value">'+card.value+'</span>';
+  }
+
+  function suitClass(card){ return (card.suit===null||card.suit===undefined) ? 'wildcard' : card.suit; }
+
+  // ---------------------------------------------------------------- lobby
+
+  function renderLobby(){
+    var html = '';
+    html += '<div class="masthead"><div class="title-block"><span class="title-en">BATTLE LINE</span><span class="title-ja">バトルライン オンライン</span></div></div>';
+    html += '<div class="lobby-wrap"><div class="lobby-card">';
+    html += '<h1>対局に参加</h1><p class="sub">同じLAN内のもう一人と、部屋コードで接続します。</p>';
+    html += '<div class="field"><label for="nameInput">プレイヤー名（任意）</label><input id="nameInput" maxlength="20" placeholder="プレイヤー" /></div>';
+    html += '<button class="primary" data-action="create-room">部屋を作る</button>';
+    html += '<div class="divider">または</div>';
+    html += '<div class="field"><label for="codeInput">部屋コード</label><div class="room-code-row"><input id="codeInput" maxlength="4" placeholder="ABCD" /><button class="primary" style="width:auto" data-action="join-room">参加する</button></div></div>';
+    html += '<div class="error-text">'+(ui.error?esc(ui.error):'')+'</div>';
+    html += '</div></div>';
+    document.getElementById('app').innerHTML = html;
+    var nameInput = document.getElementById('nameInput');
+    var codeInput = document.getElementById('codeInput');
+    var savedName = '';
+    try{ savedName = localStorage.getItem('battleline_name') || ''; }catch(e){}
+    nameInput.value = savedName;
+  }
+
+  function renderWaiting(){
+    var html = '';
+    html += '<div class="masthead"><div class="title-block"><span class="title-en">BATTLE LINE</span><span class="title-ja">バトルライン オンライン</span></div>';
+    html += '<div class="masthead-actions"><button class="chip" data-action="leave">部屋を出る</button></div></div>';
+    html += '<div class="lobby-wrap"><div class="lobby-card waiting-panel">';
+    html += '<h1>対戦相手を待っています</h1>';
+    html += '<p class="sub">この部屋コードを、もう一人のプレイヤーに伝えてください。</p>';
+    html += '<div class="room-code-display">'+esc(view.roomId)+'</div>';
+    html += '<div class="share-line">'+esc(location.origin)+' を開き、部屋コード「'+esc(view.roomId)+'」で参加してもらいます。</div>';
+    html += '<div class="spinner-text">● 参加を待機中…</div>';
+    html += '</div></div>';
+    document.getElementById('app').innerHTML = html;
+  }
+
+  // ----------------------------------------------------------------- game
+
+  function isMyTurn(){ return view.current === me.playerIdx && !view.gameOver; }
+  function blocked(){
+    // true if some pending interaction (mine or opponent's) prevents normal card play
+    return !!(view.pendingDraw || view.pendingScout);
+  }
+  function canAct(){ return isMyTurn() && !blocked() && !view.gameOver; }
+
+  function targetableFlags(){
+    if(!ui.mode || !canAct()) return {};
+    var map = {};
+    view.flags.forEach(function(f, idx){
+      if(f.claimedBy !== null) return;
+      if(ui.mode.type === 'troop' || ui.mode.type === 'wild'){
+        if(ui.mode.type==='wild' && ui.mode.kind==='wild-full' && !ui.mode.suit) return;
+        if(ui.mode.type==='wild' && !ui.mode.value) return;
+        if(f.slots[me.playerIdx].length < capacityOf(f)) map[idx]=true;
+      } else if(ui.mode.type === 'env'){
+        if(!f.fog && !f.mud) map[idx]=true;
+      } else if(ui.mode.type === 'redeploy' && ui.mode.from){
+        if(idx !== ui.mode.from.flagIndex && f.slots[me.playerIdx].length < capacityOf(f)) map[idx]=true;
+      }
+    });
+    return map;
+  }
+
+  function pickableBoardCards(){
+    // returns {flagIndex-side-slot: true} for cards clickable in redeploy-source / deserter-target modes
+    var map = {};
+    if(!ui.mode || !canAct()) return map;
+    if(ui.mode.type === 'redeploy' && !ui.mode.from){
+      view.flags.forEach(function(f, fi){
+        if(f.claimedBy !== null) return;
+        f.slots[me.playerIdx].forEach(function(c, si){ map[fi+'-'+me.playerIdx+'-'+si] = true; });
+      });
+    } else if(ui.mode.type === 'deserter'){
+      var opp = 1-me.playerIdx;
+      view.flags.forEach(function(f, fi){
+        if(f.claimedBy !== null) return;
+        f.slots[opp].forEach(function(c, si){ map[fi+'-'+opp+'-'+si] = true; });
+      });
+    }
+    return map;
+  }
+
+  function renderBoard(){
+    var targets = targetableFlags();
+    var pickable = pickableBoardCards();
+    var html = '<div class="board-wrap"><div class="board">';
+    view.flags.forEach(function(f, idx){
+      var targetable = !!targets[idx];
+      html += '<div class="flag-col"'+(targetable?' data-action="flag"':'')+' data-flag="'+idx+'" data-targetable="'+(targetable?'1':'0')+'" tabindex="'+(targetable?'0':'-1')+'">';
+      html += '<div class="zone zoneA">';
+      for(var i=0;i<capacityOf(f);i++){
+        var c = f.slots[0][i];
+        if(c){
+          var key = idx+'-0-'+i;
+          var pick = pickable[key] ? ' pickable' : '';
+          html += '<div class="card '+suitClass(c)+pick+'"'+(pickable[key]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="0" data-slot="'+i+'">'+troopCardHTML(c,false)+'</div>';
+        } else { html += '<div class="slot empty"></div>'; }
+      }
+      html += '</div>';
+      html += '<div class="tags">'+(f.fog?'<span class="tag">霧</span>':'')+(f.mud?'<span class="tag">泥濘</span>':'')+'</div>';
+      html += '<div class="flagpole" data-owner="'+(f.claimedBy===null?'':f.claimedBy)+'"><span class="banner"></span><span class="num">第'+f.num+'旗</span><span class="formation">'+(f.formation?esc(f.formation):'&nbsp;')+'</span></div>';
+      html += '<div class="zone zoneB">';
+      for(var j=0;j<capacityOf(f);j++){
+        var c2 = f.slots[1][j];
+        if(c2){
+          var key2 = idx+'-1-'+j;
+          var pick2 = pickable[key2] ? ' pickable' : '';
+          html += '<div class="card '+suitClass(c2)+pick2+'"'+(pickable[key2]?' data-action="pick"':'')+' data-flag="'+idx+'" data-side="1" data-slot="'+j+'">'+troopCardHTML(c2,false)+'</div>';
+        } else { html += '<div class="slot empty"></div>'; }
+      }
+      html += '</div>';
+      html += '</div>';
+    });
+    html += '</div></div>';
+    return html;
+  }
+
+  function renderActionPanel(){
+    if(!ui.mode || !canAct()) return '';
+    var m = ui.mode;
+    var html = '<div class="action-panel">';
+    if(m.type === 'troop'){
+      html += '<span class="hint">配置する旗を選んでください。</span>';
+    } else if(m.type === 'wild'){
+      if(m.kind === 'wild-full'){
+        html += '<span class="hint">兵科を選択：</span><div class="picker-row">';
+        SUITS.forEach(function(s){
+          html += '<button class="pick-btn'+(m.suit===s.id?' on':'')+'" data-action="pick-suit" data-suit="'+s.id+'">'+s.kanji+' '+s.name+'</button>';
+        });
+        html += '</div>';
+      }
+      html += '<span class="hint">数値を選択：</span><div class="picker-row">';
+      for(var v=1; v<=10; v++){
+        html += '<button class="pick-btn'+(m.value===v?' on':'')+'" data-action="pick-value" data-value="'+v+'">'+v+'</button>';
+      }
+      html += '</div>';
+      if(m.kind==='wild-num' || m.suit){ if(m.value) html += '<span class="hint">配置する旗を選んでください。</span>'; }
+    } else if(m.type === 'env'){
+      html += '<span class="hint">効果を適用する旗を選んでください（'+TACTICS_META[view.hand[m.handIndex].type].desc+'）</span>';
+    } else if(m.type === 'scout'){
+      html += '<span class="hint">山札から何を引くか選択（部隊残り'+view.troopDeckCount+'／戦術残り'+view.tacticsDeckCount+'）：</span>';
+      html += '<div class="picker-row">';
+      [0,1,2].forEach(function(i){
+        var cur = m.sources[i] || 'troop';
+        html += '<span class="scout-slot">'+(i+1)+'枚目：<button class="pick-btn" data-action="toggle-scout" data-i="'+i+'">'+(cur==='troop'?'部隊':'戦術')+'</button></span>';
+      });
+      html += '</div><button class="chip" data-action="do-scout">この内容で確認する</button>';
+    } else if(m.type === 'redeploy'){
+      if(!m.from) html += '<span class="hint">未決着の旗にある、自分の札を選んでください。</span>';
+      else html += '<span class="hint">移動先の旗を選んでください。</span>';
+    } else if(m.type === 'deserter'){
+      html += '<span class="hint">未決着の旗にある、相手の札を選んでください。</span>';
+    }
+    html += '<button class="chip" data-action="cancel-mode" style="align-self:flex-start;">選択を取り消す</button>';
+    html += '</div>';
+    return html;
+  }
+
+  function renderHand(){
+    var hand = view.hand;
+    var html = '<div class="hand-row">';
+    if(hand.length === 0){
+      html += '<div class="empty-hand">手札がありません。手番は自動的に送られます。</div>';
+    } else {
+      hand.forEach(function(c, i){
+        var sel = ui.mode && ui.mode.handIndex === i ? ' selected' : '';
+        var dis = !canAct() ? ' disabled' : '';
+        if(c.kind === 'troop'){
+          html += '<button class="hand-card card troop-face '+c.suit+sel+'" data-action="select" data-idx="'+i+'"'+dis+'>'+troopCardHTML(c,true)+'</button>';
+        } else {
+          var meta = TACTICS_META[c.type];
+          html += '<button class="hand-card tactics-face'+sel+'" style="border-color:var(--tactics);" data-action="select" data-idx="'+i+'"'+dis+'>';
+          html += '<span class="roundel" style="background:var(--tactics)">'+meta.kanji+'</span><span class="tname">'+esc(meta.name)+'</span>';
+          html += '</button>';
+        }
+      });
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderApp(){
+    var html = '';
+    html += '<div class="masthead">';
+    html += '  <div class="title-block"><span class="title-en">BATTLE LINE</span><span class="title-ja">バトルライン オンライン（部屋 '+esc(view.roomId)+'）</span></div>';
+    html += '  <div class="masthead-actions"><button class="chip" data-action="rules">遊び方</button><button class="chip" data-action="leave">部屋を出る</button></div>';
+    html += '</div>';
+
+    html += '<div class="pips">';
+    view.flags.forEach(function(f){
+      html += '<div class="pip" data-owner="'+(f.claimedBy===null?'':f.claimedBy)+'" title="第'+f.num+'旗'+(f.formation?'：'+f.formation:'')+'">'+f.num+'</div>';
+    });
+    html += '</div>';
+
+    [0,1].forEach(function(p){
+      var count = view.flags.filter(function(f){return f.claimedBy===p;}).length;
+      var isActive = (view.current===p && !view.gameOver);
+      var handCount = p === me.playerIdx ? view.hand.length : view.oppHandCount;
+      var connected = p === me.playerIdx ? true : view.opponentConnected;
+      html += '<div class="scorebar '+(p===0?'playerA':'playerB')+(isActive?' active':'')+'">';
+      html += '  <div class="who"><span class="swatch" style="background:'+(p===0?'var(--accentA)':'var(--accentB)')+'"></span>'+esc(view.names[p])+(p===me.playerIdx?'（あなた）':'')+(isActive?'　<span style="color:var(--gold);font-size:11px;">● 手番</span>':'')+'</div>';
+      html += '  <div class="stat"><span class="conn-dot'+(connected?'':' off')+'"></span> 獲得旗 <b>'+count+'</b> / 5　手札 <b>'+handCount+'</b>枚</div>';
+      html += '</div>';
+    });
+
+    html += renderBoard();
+
+    if(!view.opponentConnected && !view.gameOver){
+      html += '<div class="banner-notice">相手が切断しています。再接続を待っています…</div>';
+    }
+
+    html += '<div class="hand-tray">';
+    html += '<div class="turn-row">';
+    if(view.gameOver){
+      html += '<div class="turn-indicator">対局終了</div>';
+    } else if(view.pendingScout){
+      html += '<div class="turn-indicator">'+(view.pendingScout.mine ? '斥候の結果を選択してください' : esc(view.names[1-me.playerIdx])+'が斥候を実行中…')+'</div>';
+    } else if(view.pendingDraw){
+      html += '<div class="turn-indicator">'+(view.pendingDraw.mine ? '引く山札を選択してください' : esc(view.names[1-me.playerIdx])+'が山札を選択中…')+'</div>';
+    } else {
+      html += '<div class="turn-indicator"><span class="swatch" style="background:'+(view.current===0?'var(--accentA)':'var(--accentB)')+'"></span>'+(isMyTurn() ? 'あなたの手番です' : esc(view.names[view.current])+'の手番です')+'</div>';
+    }
+    html += '  <div class="deck-count"><span>部隊山札 '+view.troopDeckCount+' 枚</span><span>戦術山札 '+view.tacticsDeckCount+' 枚</span></div>';
+    html += '</div>';
+
+    if(view.pendingDraw && view.pendingDraw.mine){
+      html += '<div class="draw-prompt"><span>どちらの山札から引きますか？</span>';
+      html += '<button class="chip" data-action="draw-source" data-source="troop"'+(view.troopDeckCount===0?' disabled':'')+'>部隊山札（残り'+view.troopDeckCount+'）</button>';
+      html += '<button class="chip" data-action="draw-source" data-source="tactics"'+(view.tacticsDeckCount===0?' disabled':'')+'>戦術山札（残り'+view.tacticsDeckCount+'）</button>';
+      html += '</div>';
+    } else {
+      html += renderActionPanel();
+      html += renderHand();
+    }
+    html += '</div>';
+
+    html += '<div class="log-strip"><span>戦況記録：</span><b>'+esc(view.log[view.log.length-1]||'')+'</b><button class="chip" data-action="log">履歴</button></div>';
+
+    if(view.pendingScout && view.pendingScout.mine){
+      html += '<div class="overlay"><div class="panel">';
+      html += '<h2>斥候の結果</h2><p>1枚を手札に加えます。残りは山札の底へ戻されます。</p>';
+      view.pendingScout.drawn.forEach(function(d, i){
+        var label = d.card.kind === 'troop' ? (SUIT_BY_ID[d.card.suit].kanji+' '+SUIT_BY_ID[d.card.suit].name+' 『'+d.card.value+'』') : TACTICS_META[d.card.type].name;
+        var src = d.source === 'troop' ? '部隊山札' : '戦術山札';
+        html += '<button class="scout-card-btn" data-action="scout-keep" data-i="'+i+'"><span>'+esc(label)+'</span><span style="color:var(--ink-soft);font-size:11px;">（'+src+'より）</span></button>';
+      });
+      html += '</div></div>';
+    }
+
+    if(view.gameOver){
+      html += '<div class="overlay"><div class="panel">';
+      if(view.winner !== null){
+        html += '<h2>'+esc(view.names[view.winner])+'の勝利</h2><p>'+esc(view.reason)+'</p>';
+      } else {
+        html += '<h2>引き分け</h2><p>'+esc(view.reason||'')+'</p>';
+      }
+      html += '<button class="primary" data-action="rematch">もう一度この部屋で戦う</button>';
+      html += '</div></div>';
+    }
+
+    if(ui.showRules){ html += renderRules(); }
+
+    document.getElementById('app').innerHTML = html;
+  }
+
+  function renderRules(){
+    var html = '<div class="overlay" data-action="closerules-bg"><div class="panel rules-panel">';
+    html += '<button class="close-x" data-action="closerules">×</button>';
+    html += '<h2 style="font-family:\'Shippori Mincho\',serif;">バトルラインの遊び方</h2>';
+    html += '<p style="font-size:13px;line-height:1.7;">6兵科×1〜10、計60枚の部隊カードと、10枚の戦術カードを使用。各プレイヤーは7枚の手札を持ち、9本の軍旗を巡って戦う。</p>';
+    html += '<h3>手番</h3><ol style="font-size:13px;line-height:1.75;"><li>手札から1枚（部隊カードまたは戦術カード）を使う。</li><li>通常は山札から1枚引いて手札を7枚に戻す（部隊山札／戦術山札の両方が残っていれば、引く山札を選べる）。</li></ol>';
+    html += '<h3>陣形（強い順、旗に3枚〔泥濘なら4枚〕揃うと自動判定）</h3>';
+    html += '<table><tr><th>陣形</th><th>条件</th></tr><tr><td>楔形陣</td><td>同じ兵科で連続した数値3枚</td></tr><tr><td>方陣</td><td>同じ数値が3枚</td></tr><tr><td>陣列</td><td>同じ兵科3枚（不連続）</td></tr><tr><td>散兵線</td><td>異なる兵科で連続した数値3枚</td></tr><tr><td>混成隊</td><td>その他（合計値で比較）</td></tr></table>';
+    html += '<h3>戦術カード（本実装オリジナルの10枚）</h3><table>';
+    Object.keys(TACTICS_META).forEach(function(k){
+      html += '<tr><td>'+esc(TACTICS_META[k].name)+'</td><td>'+esc(TACTICS_META[k].desc)+'</td></tr>';
+    });
+    html += '</table>';
+    html += '<h3>勝利条件</h3><ul style="font-size:13px;line-height:1.75;"><li>9本のうち5本の軍旗を確保する。</li><li>または隣接する3本の軍旗を連続して確保する。</li></ul>';
+    html += '</div></div>';
+    return html;
+  }
+
+  function render(){
+    if(!me.playerIdx && me.playerIdx !== 0){ renderLobby(); return; }
+    if(!view){ renderLobby(); return; }
+    if(!view.started){ renderWaiting(); return; }
+    renderApp();
+  }
+
+  // -------------------------------------------------------------- events
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-action]');
+    if(!el) return;
+    var action = el.getAttribute('data-action');
+    if(!action) return;
+
+    if(action === 'create-room'){
+      var name = document.getElementById('nameInput').value.trim();
+      try{ localStorage.setItem('battleline_name', name); }catch(err){}
+      send({type:'create_room', name: name || undefined});
+    } else if(action === 'join-room'){
+      var code = document.getElementById('codeInput').value.trim();
+      var nm = document.getElementById('nameInput').value.trim();
+      try{ localStorage.setItem('battleline_name', nm); }catch(err){}
+      if(!code){ ui.error = '部屋コードを入力してください。'; render(); return; }
+      send({type:'join_room', roomId: code, name: nm || undefined});
+    } else if(action === 'leave'){
+      clearSession();
+      location.reload();
+    } else if(action === 'select'){
+      var idx = parseInt(el.getAttribute('data-idx'),10);
+      if(!canAct()) return;
+      if(ui.mode && ui.mode.handIndex === idx){ ui.mode = null; render(); return; }
+      var card = view.hand[idx];
+      if(card.kind === 'troop'){ ui.mode = {type:'troop', handIndex:idx}; }
+      else {
+        var meta = TACTICS_META[card.type];
+        if(meta.kind === 'wild-full') ui.mode = {type:'wild', handIndex:idx, kind:'wild-full', suit:null, value:null};
+        else if(meta.kind === 'wild-num') ui.mode = {type:'wild', handIndex:idx, kind:'wild-num', suit:null, value:null};
+        else if(meta.kind === 'env') ui.mode = {type:'env', handIndex:idx};
+        else if(card.type === 'scout') ui.mode = {type:'scout', handIndex:idx, sources:['troop','troop','troop']};
+        else if(card.type === 'redeploy') ui.mode = {type:'redeploy', handIndex:idx, from:null};
+        else if(card.type === 'deserter') ui.mode = {type:'deserter', handIndex:idx};
+      }
+      render();
+    } else if(action === 'cancel-mode'){
+      ui.mode = null; render();
+    } else if(action === 'pick-suit'){
+      if(ui.mode) ui.mode.suit = el.getAttribute('data-suit');
+      render();
+    } else if(action === 'pick-value'){
+      if(ui.mode) ui.mode.value = parseInt(el.getAttribute('data-value'),10);
+      render();
+    } else if(action === 'toggle-scout'){
+      var i = parseInt(el.getAttribute('data-i'),10);
+      if(ui.mode){
+        ui.mode.sources[i] = (ui.mode.sources[i] === 'tactics') ? 'troop' : 'tactics';
+      }
+      render();
+    } else if(action === 'do-scout'){
+      if(ui.mode) send({type:'play_scout', handIndex: ui.mode.handIndex, sources: ui.mode.sources});
+      ui.mode = null;
+    } else if(action === 'flag'){
+      var flagIdx = parseInt(el.getAttribute('data-flag'),10);
+      if(!ui.mode) return;
+      if(ui.mode.type === 'troop'){
+        send({type:'play_troop', handIndex: ui.mode.handIndex, flagIndex: flagIdx});
+      } else if(ui.mode.type === 'wild'){
+        if(ui.mode.kind === 'wild-full' && (!ui.mode.suit || !ui.mode.value)) return;
+        if(ui.mode.kind === 'wild-num' && !ui.mode.value) return;
+        send({type:'play_wild', handIndex: ui.mode.handIndex, flagIndex: flagIdx, suit: ui.mode.suit, value: ui.mode.value});
+      } else if(ui.mode.type === 'env'){
+        send({type:'play_env', handIndex: ui.mode.handIndex, flagIndex: flagIdx});
+      } else if(ui.mode.type === 'redeploy' && ui.mode.from){
+        send({type:'play_redeploy', handIndex: ui.mode.handIndex, fromFlag: ui.mode.from.flagIndex, slotIndex: ui.mode.from.slotIndex, toFlag: flagIdx});
+      }
+      ui.mode = null;
+    } else if(action === 'pick'){
+      if(!ui.mode) return;
+      var pf = parseInt(el.getAttribute('data-flag'),10);
+      var ps = parseInt(el.getAttribute('data-side'),10);
+      var psl = parseInt(el.getAttribute('data-slot'),10);
+      if(ui.mode.type === 'redeploy' && !ui.mode.from){
+        ui.mode.from = {flagIndex: pf, slotIndex: psl};
+        render();
+      } else if(ui.mode.type === 'deserter'){
+        send({type:'play_deserter', handIndex: ui.mode.handIndex, targetFlag: pf, targetSlotIndex: psl});
+        ui.mode = null;
+      }
+    } else if(action === 'draw-source'){
+      send({type:'choose_draw', source: el.getAttribute('data-source')});
+    } else if(action === 'scout-keep'){
+      send({type:'resolve_scout', keepIndex: parseInt(el.getAttribute('data-i'),10)});
+    } else if(action === 'rematch'){
+      send({type:'rematch'});
+    } else if(action === 'rules'){
+      ui.showRules = true; render();
+    } else if(action === 'closerules' || action === 'closerules-bg'){
+      if(action === 'closerules-bg' && e.target !== el) return;
+      ui.showRules = false; render();
+    } else if(action === 'log'){
+      alert(view.log.slice().reverse().join('\n'));
+    }
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Enter' && e.key !== ' ') return;
+    var el = e.target.closest('[data-action="flag"]');
+    if(el){ e.preventDefault(); el.click(); }
+  });
+
+  connect();
+  render();
+})();
+</script>
+</body>
+</html>
